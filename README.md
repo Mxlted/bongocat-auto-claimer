@@ -1,6 +1,7 @@
 # BongoCat Auto Chest Claimer
 
 Auto-claims BongoCat chests via a DLL patch.
+> Working as of March 2026
 
 ## Requirements
 
