@@ -14,6 +14,7 @@ Auto-claims BongoCat chests via a DLL patch.
 5. **File → Save Module → OK** and replace the original DLL
 
 ## Method
+
 ```csharp
 private IEnumerator TimerUpdate()
 {
@@ -72,6 +73,6 @@ private IEnumerator TimerUpdate()
 ## Notes
 - Normal chest claims after **1 second**, emote chest claims after **2 seconds** - a 1 second stagger to avoid simultaneous claims
 - If no token is in inventory (`m_unQuantity == 0`) the timer resets to 60 seconds and checks again
-- If you have **fewer than 1000 points**, the claimer waits and re-checks every **60 seconds** until you can afford the chest, then buys immediately
+- If you have fewer than 1000 points when the chest is ready, the claimer will re-check every 60 seconds until you have enough and then buy automatically - however if you start a session already under 1000 points you may need to claim the chest manually once you reach 1000
 - The chest popup stays visible while waiting for enough points
 - If the game updates, find the new `TimerUpdate()` in dnSpy and reapply
