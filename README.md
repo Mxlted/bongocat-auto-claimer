@@ -44,7 +44,7 @@ private IEnumerator TimerUpdate()
                         {
                             SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
                         }
-                        // Emote chest waits 2s, normal chest waits 1s — 1 second stagger
+                        // Emote chest waits 2s, normal chest waits 1s - 1 second stagger
                         float claimDelay = this._isEmoteShop ? 2f : 1f;
                         yield return new WaitForSeconds(claimDelay);
 
@@ -70,7 +70,7 @@ private IEnumerator TimerUpdate()
 ```
 
 ## Notes
-- Normal chest claims after **1 second**, emote chest claims after **2 seconds** — a 1 second stagger to avoid simultaneous claims
+- Normal chest claims after **1 second**, emote chest claims after **2 seconds** - a 1 second stagger to avoid simultaneous claims
 - If no token is in inventory (`m_unQuantity == 0`) the timer resets to 60 seconds and checks again
 - If you have **fewer than 1000 points**, the claimer waits and re-checks every **60 seconds** until you can afford the chest, then buys immediately
 - The chest popup stays visible while waiting for enough points
