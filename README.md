@@ -1,23 +1,16 @@
 # BongoCat Auto Chest Claimer
-
 Auto-claims BongoCat chests via a DLL patch.
 > Working as of March 2026
-
 ## Requirements
-
 - [dnSpy](https://github.com/dnSpy/dnSpy) (64-bit .NET)
 - BongoCat on Steam
-
 ## How to Apply
-
 1. Open `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` in dnSpy
 2. Navigate to `Assembly-CSharp.dll → BongoCat → Shop → TimerUpdate()`
 3. Right-click → **Edit Method (C#)**
 4. Replace the entire method with the code below
 5. **File → Save Module → OK** and replace the original DLL
-
 ## Method
-
 ```csharp
 private IEnumerator TimerUpdate()
 {
@@ -47,8 +40,8 @@ private IEnumerator TimerUpdate()
                         if (!this._isEmoteShop)
                         {
                             SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
-                            yield return new WaitForSeconds(5f);
                         }
+                        yield return new WaitForSeconds(1f);
                         this._shopItem.Buy();
                     }
                 }
@@ -63,9 +56,7 @@ private IEnumerator TimerUpdate()
     yield break;
 }
 ```
-
 ## Notes
-
-- Regular chest waits 5 seconds before claiming, emote chest claims immediately — staggers the two to prevent a simultaneous claim from bricking both
+- Both the regular chest and emote chest now wait 1 second before claiming - enough to stagger simultaneous claims without unnecessary delay
 - If no token is in inventory (`m_unQuantity == 0`) the timer resets to 60 seconds and checks again
 - If the game updates, find the new `TimerUpdate()` in dnSpy and reapply
