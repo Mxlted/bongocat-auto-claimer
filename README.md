@@ -1,15 +1,18 @@
 # BongoCat Auto Chest Claimer
 Auto-claims BongoCat chests via a DLL patch.
 > Working as of March 2026
+
 ## Requirements
 - [dnSpy](https://github.com/dnSpy/dnSpy) (64-bit .NET)
 - BongoCat on Steam
+
 ## How to Apply
 1. Open `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` in dnSpy
 2. Navigate to `Assembly-CSharp.dll → BongoCat → Shop → TimerUpdate()`
 3. Right-click → **Edit Method (C#)**
 4. Replace the entire method with the code below
 5. **File → Save Module → OK** and replace the original DLL
+
 ## Method
 ```csharp
 private IEnumerator TimerUpdate()
@@ -41,7 +44,16 @@ private IEnumerator TimerUpdate()
                         {
                             SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
                         }
-                        yield return new WaitForSeconds(1f);
+                        // Emote chest waits 2s, normal chest waits 1s — 1 second stagger
+                        float claimDelay = this._isEmoteShop ? 2f : 1f;
+                        yield return new WaitForSeconds(claimDelay);
+
+                        // If under 1000 points, keep checking every 60s until we can afford it
+                        while (!this._shopItem.CanBuy())
+                        {
+                            yield return new WaitForSecondsRealtime(60f);
+                        }
+
                         this._shopItem.Buy();
                     }
                 }
@@ -56,7 +68,10 @@ private IEnumerator TimerUpdate()
     yield break;
 }
 ```
+
 ## Notes
-- Both the regular chest and emote chest now wait 1 second before claiming - enough to stagger simultaneous claims without unnecessary delay
+- Normal chest claims after **1 second**, emote chest claims after **2 seconds** — a 1 second stagger to avoid simultaneous claims
 - If no token is in inventory (`m_unQuantity == 0`) the timer resets to 60 seconds and checks again
+- If you have **fewer than 1000 points**, the claimer waits and re-checks every **60 seconds** until you can afford the chest, then buys immediately
+- The chest popup stays visible while waiting for enough points
 - If the game updates, find the new `TimerUpdate()` in dnSpy and reapply
