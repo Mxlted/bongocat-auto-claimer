@@ -25,7 +25,11 @@ private IEnumerator TimerUpdate()
             this.StockRefreshTimeLeft--;
             PlayerPrefs.SetInt(this._shopTimeKey, this.StockRefreshTimeLeft);
             this._stockRefreshText.text = string.Format("{0:mm':'ss}", TimeSpan.FromSeconds((double)this.StockRefreshTimeLeft));
-            SteamItemDetails_t chestToken = this._isEmoteShop ? CatInventory.Instance.EmoteChestToken : CatInventory.Instance.ChestToken;
+
+            SteamItemDetails_t chestToken = this._isEmoteShop
+                ? CatInventory.Instance.EmoteChestToken
+                : CatInventory.Instance.ChestToken;
+
             if (this.StockRefreshTimeLeft <= 0)
             {
                 if (chestToken.m_unQuantity == 0)
@@ -38,35 +42,38 @@ private IEnumerator TimerUpdate()
                     this._shopItem.gameObject.SetActive(true);
                     this._outOfStockObj.SetActive(false);
                     this.ChestIsReady = true;
+
                     if (this._showChestPopup.Value && this._shopItem.CanBuy())
                     {
-                        this._shopVisuals.SetActive(true);
                         if (!this._isEmoteShop)
-                        {
                             SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
-                        }
-                        // Emote chest waits 2s, normal chest waits 1s - 1 second stagger
+
+                        this._shopVisuals.SetActive(true);
+
+                        // Emote chest waits 2s, normal chest waits 1s
                         float claimDelay = this._isEmoteShop ? 2f : 1f;
                         yield return new WaitForSeconds(claimDelay);
 
-                        // If under 1000 points, keep checking every 60s until we can afford it
+                        // Keep checking every 60s until the player can afford it
                         while (!this._shopItem.CanBuy())
-                        {
                             yield return new WaitForSecondsRealtime(60f);
-                        }
 
                         this._shopItem.Buy();
                     }
                 }
             }
         }
-        else if (this.StockRefreshTimeLeft <= 0 && !this._shopVisuals.activeInHierarchy && this._showChestPopup.Value && this._shopItem.CanBuy())
+        else if (this.StockRefreshTimeLeft <= 0 && !this._shopVisuals.activeInHierarchy
+              && this._showChestPopup.Value && this._shopItem.CanBuy())
         {
+            if (!this._isEmoteShop)
+                SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
+
             this._shopVisuals.SetActive(true);
         }
+
         yield return new WaitForSecondsRealtime(1f);
     }
-    yield break;
 }
 ```
 
