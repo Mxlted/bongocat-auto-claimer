@@ -1,5 +1,7 @@
 # Bongo Cat Auto Chest Claimer
-Auto-claims Bongo Cat chests via a DLL patch.
+
+Patches Bongo Cat's `Shop.TimerUpdate()` coroutine to auto-claim chests and emote chests shortly after they become available.
+
 > Working as of April 2026
 
 ## Requirements
@@ -7,11 +9,12 @@ Auto-claims Bongo Cat chests via a DLL patch.
 - Bongo Cat on Steam
 
 ## How to Apply
-1. Open `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` in dnSpy
-2. Navigate to `Assembly-CSharp.dll → BongoCat → Shop → TimerUpdate()`
-3. Right-click → **Edit Method (C#)**
-4. Replace the entire method with the code below
-5. **File → Save Module → OK** and replace the original DLL
+1. **Back up** `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` first
+2. Open the DLL in dnSpy
+3. Navigate to `Assembly-CSharp.dll → BongoCat → Shop → TimerUpdate()`
+4. Right-click → **Edit Method (C#)**
+5. Replace the entire method with the code below
+6. **File → Save Module → OK** and replace the original DLL
 
 ## Method
 
@@ -72,9 +75,15 @@ private IEnumerator TimerUpdate()
 }
 ```
 
-## Notes
-- Normal chest claims after **1 second**, emote chest claims after **2 seconds** - a 1 second stagger to avoid simultaneous claims
-- If no token is in inventory (`m_unQuantity == 0`) the timer resets to 60 seconds and checks again
-- If you have fewer than 1000 points when the chest is ready, the claimer will re-check every 60 seconds until you have enough and then buy automatically - however if you start a session already under 1000 points you may need to claim the chest manually once you reach 1000
-- The chest popup stays visible while waiting for enough points
-- If the game updates, find the new `TimerUpdate()` in dnSpy and reapply
+## Behavior
+- Normal chest claims **1 second** after becoming available
+- Emote chest claims **2 seconds** after (staggered to avoid simultaneous claims)
+- If no token is in inventory (`m_unQuantity == 0`), the timer resets to 60s
+- If you can't afford the chest when ready, the claimer rechecks every 60s until you can
+  - Caveat: if you start a session already under 1000 points, you may need to claim manually once you're back above the threshold
+- The chest popup stays visible while waiting
+
+## Troubleshooting
+- **dnSpy compile errors** → game probably updated; check that `Shop`, `ShopItem.CanBuy()`, and `ShopItem.Buy()` still exist with matching signatures
+- **Game won't launch** → restore your backup DLL
+- **Patch disappeared after a game update** → reapply; Steam's "Verify integrity of game files" also reverts it
