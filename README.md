@@ -1,6 +1,6 @@
 # Bongo Cat Auto Chest Claimer
 Auto-claims Bongo Cat chests via a DLL patch.
-> Working as of March 2026
+> Working as of April 2026
 
 ## Requirements
 - [dnSpy](https://github.com/dnSpy/dnSpy) (64-bit .NET)
