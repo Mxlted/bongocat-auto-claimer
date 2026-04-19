@@ -1,10 +1,10 @@
-# BongoCat Auto Chest Claimer
-Auto-claims BongoCat chests via a DLL patch.
+# Bongo Cat Auto Chest Claimer
+Auto-claims Bongo Cat chests via a DLL patch.
 > Working as of March 2026
 
 ## Requirements
 - [dnSpy](https://github.com/dnSpy/dnSpy) (64-bit .NET)
-- BongoCat on Steam
+- Bongo Cat on Steam
 
 ## How to Apply
 1. Open `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` in dnSpy
