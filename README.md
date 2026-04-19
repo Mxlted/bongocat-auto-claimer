@@ -19,59 +19,74 @@ Patches Bongo Cat's `Shop.TimerUpdate()` coroutine to auto-claim chests and emot
 ## Method
 
 ```csharp
-// BongoCat.Shop
-// Token: 0x0600061E RID: 1566
-private IEnumerator TimerUpdate()
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using BongoCat.Multiplayer;
+using Steamworks;
+using TMPro;
+using UnityEngine;
+using Vfx;
+
+namespace BongoCat
 {
-	for (;;)
+	// Token: 0x0200012A RID: 298
+	public partial class Shop : MonoBehaviour
 	{
-		if (this._outOfStockObj.activeSelf)
+		// Token: 0x0600061E RID: 1566 RVA: 0x000059FD File Offset: 0x00003BFD
+		private IEnumerator TimerUpdate()
 		{
-			this.StockRefreshTimeLeft--;
-			PlayerPrefs.SetInt(this._shopTimeKey, this.StockRefreshTimeLeft);
-			this._stockRefreshText.text = string.Format("{0:mm':'ss}", TimeSpan.FromSeconds((double)this.StockRefreshTimeLeft));
-			SteamItemDetails_t chestToken = this._isEmoteShop ? CatInventory.Instance.EmoteChestToken : CatInventory.Instance.ChestToken;
-			if (this.StockRefreshTimeLeft <= 0)
+			for (;;)
 			{
-				if (chestToken.m_unQuantity == 0)
+				if (this._outOfStockObj.activeSelf)
 				{
-					this.StockRefreshTimeLeft = 60;
-				}
-				else
-				{
-					this.StockRefreshTimeLeft = 0;
-					this._shopItem.gameObject.SetActive(true);
-					this._outOfStockObj.SetActive(false);
-					this.ChestIsReady = true;
-					if (this._showChestPopup.Value && this._shopItem.CanBuy())
+					this.StockRefreshTimeLeft--;
+					PlayerPrefs.SetInt(this._shopTimeKey, this.StockRefreshTimeLeft);
+					this._stockRefreshText.text = string.Format("{0:mm':'ss}", TimeSpan.FromSeconds((double)this.StockRefreshTimeLeft));
+					SteamItemDetails_t steamItemDetails_t = this._isEmoteShop ? CatInventory.Instance.EmoteChestToken : CatInventory.Instance.ChestToken;
+					if (this.StockRefreshTimeLeft <= 0)
 					{
-						if (!this._isEmoteShop)
+						if (steamItemDetails_t.m_unQuantity == 0)
 						{
-							SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
+							this.StockRefreshTimeLeft = 60;
 						}
-						this._shopVisuals.SetActive(true);
-						float claimDelay = this._isEmoteShop ? 2f : 1f;
-						yield return new WaitForSeconds(claimDelay);
-						while (!this._shopItem.CanBuy())
+						else
 						{
-							yield return new WaitForSecondsRealtime(60f);
+							this.StockRefreshTimeLeft = 0;
+							this._shopItem.gameObject.SetActive(true);
+							this._outOfStockObj.SetActive(false);
+							this.ChestIsReady = true;
+							if (this._showChestPopup.Value && this._shopItem.CanBuy())
+							{
+								if (!this._isEmoteShop)
+								{
+									SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
+								}
+								this._shopVisuals.SetActive(true);
+								float seconds = this._isEmoteShop ? 2f : 1f;
+								yield return new WaitForSeconds(seconds);
+								while (!this._shopItem.CanBuy())
+								{
+									yield return new WaitForSecondsRealtime(60f);
+								}
+								this._shopItem.Buy();
+							}
 						}
-						this._shopItem.Buy();
 					}
 				}
+				else if (this.StockRefreshTimeLeft <= 0 && !this._shopVisuals.activeInHierarchy && this._showChestPopup.Value && this._shopItem.CanBuy())
+				{
+					if (!this._isEmoteShop)
+					{
+						SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
+					}
+					this._shopVisuals.SetActive(true);
+				}
+				yield return new WaitForSecondsRealtime(1f);
 			}
+			yield break;
 		}
-		else if (this.StockRefreshTimeLeft <= 0 && !this._shopVisuals.activeInHierarchy && this._showChestPopup.Value && this._shopItem.CanBuy())
-		{
-			if (!this._isEmoteShop)
-			{
-				SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
-			}
-			this._shopVisuals.SetActive(true);
-		}
-		yield return new WaitForSecondsRealtime(1f);
 	}
-	yield break;
 }
 ```
 
