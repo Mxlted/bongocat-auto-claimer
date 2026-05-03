@@ -1,104 +1,89 @@
-# Bongo Cat Auto Chest Claimer
+# Bongo Cat Auto-Claim Chest Mod
 
-Patches Bongo Cat's `Shop.TimerUpdate()` coroutine to auto-claim chests and emote chests shortly after they become available.
+A DLL patch for Bongo Cat that auto-claims chests as soon as they become available.
 
-> Working as of April 2026
+> Working as of May 2026
 
-## Requirements
-- [dnSpy](https://github.com/dnSpy/dnSpy) (64-bit .NET)
-- Bongo Cat on Steam
+## What It Does
 
-## How to Apply
-1. **Back up** `Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll` first
-2. Open the DLL in dnSpy
-3. Navigate to `Assembly-CSharp.dll → BongoCat → Shop → TimerUpdate()`
-4. Right-click → **Edit Method (C#)**
-5. Replace the entire method with the code below
-6. **File → Save Module → OK** and replace the original DLL
+Injects an `Update()` method into `BongoCat.Shop` that checks every frame whether a chest is ready (`CanGetChest`) and auto-claims it (`OnClick()`). No manual clicking required.
 
-## Method
+The injected IL is minimal:
+
+```
+IL_0000: ldarg.0
+IL_0001: call get_CanGetChest
+IL_0006: brfalse.s IL_000e
+IL_0008: ldarg.0
+IL_0009: call OnClick
+IL_000e: ret
+```
+
+Equivalent C#:
 
 ```csharp
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using BongoCat.Multiplayer;
-using Steamworks;
-using TMPro;
-using UnityEngine;
-using Vfx;
-
-namespace BongoCat
+void Update()
 {
-	// Token: 0x0200012A RID: 298
-	public partial class Shop : MonoBehaviour
-	{
-		// Token: 0x0600061E RID: 1566 RVA: 0x000059FD File Offset: 0x00003BFD
-		private IEnumerator TimerUpdate()
-		{
-			for (;;)
-			{
-				if (this._outOfStockObj.activeSelf)
-				{
-					this.StockRefreshTimeLeft--;
-					PlayerPrefs.SetInt(this._shopTimeKey, this.StockRefreshTimeLeft);
-					this._stockRefreshText.text = string.Format("{0:mm':'ss}", TimeSpan.FromSeconds((double)this.StockRefreshTimeLeft));
-					SteamItemDetails_t steamItemDetails_t = this._isEmoteShop ? CatInventory.Instance.EmoteChestToken : CatInventory.Instance.ChestToken;
-					if (this.StockRefreshTimeLeft <= 0)
-					{
-						if (steamItemDetails_t.m_unQuantity == 0)
-						{
-							this.StockRefreshTimeLeft = 60;
-						}
-						else
-						{
-							this.StockRefreshTimeLeft = 0;
-							this._shopItem.gameObject.SetActive(true);
-							this._outOfStockObj.SetActive(false);
-							this.ChestIsReady = true;
-							if (this._showChestPopup.Value && this._shopItem.CanBuy())
-							{
-								if (!this._isEmoteShop)
-								{
-									SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
-								}
-								this._shopVisuals.SetActive(true);
-								float seconds = this._isEmoteShop ? 2f : 1f;
-								yield return new WaitForSeconds(seconds);
-								while (!this._shopItem.CanBuy())
-								{
-									yield return new WaitForSecondsRealtime(60f);
-								}
-								this._shopItem.Buy();
-							}
-						}
-					}
-				}
-				else if (this.StockRefreshTimeLeft <= 0 && !this._shopVisuals.activeInHierarchy && this._showChestPopup.Value && this._shopItem.CanBuy())
-				{
-					if (!this._isEmoteShop)
-					{
-						SteamMultiplayer.Instance.SendChestReady(this.ChestIsReady);
-					}
-					this._shopVisuals.SetActive(true);
-				}
-				yield return new WaitForSecondsRealtime(1f);
-			}
-			yield break;
-		}
-	}
+    if (CanGetChest)
+        OnClick();
 }
 ```
 
-## Behavior
-- Normal chest claims **1 second** after becoming available
-- Emote chest claims **2 seconds** after (staggered to avoid simultaneous claims)
-- If no token is in inventory (`m_unQuantity == 0`), the timer resets to 60s
-- If you can't afford the chest when ready, the claimer rechecks every 60s until you can
-  - Caveat: if you start a session already under 1000 points, you may need to claim manually once you're back above the threshold
-- The chest popup stays visible while waiting
+## Files
+
+| File | Description |
+|------|-------------|
+| `Assembly-CSharp.dll` | Patched DLL with auto-claim injected |
+| `Assembly-CSharp.dll.bak` | Original unmodified DLL (backup) |
+| `tool/Patcher.cs` | C# tool that injects the `Update()` method via Mono.Cecil |
+| `tool/FinalVerify.cs` | Verification tool - confirms the patch is applied correctly |
+| `tool/Explore.cs` | Diagnostic tool - inspects the DLL's Shop internals |
+| `tool/Verify.cs` | Diagnostic tool - checks exception handlers in `ToggleOnHover` |
+| `tool/Mono.Cecil.dll` | .NET assembly read/write library used by the patcher |
+
+## Requirements
+
+- [Bongo Cat on Steam](https://store.steampowered.com/app/2324940/Bongo_Cat/)
+- If building from source: .NET Framework 4.x or .NET SDK
+
+## Installation
+
+1. Locate your Bongo Cat install (typically `Steam\steamapps\common\BongoCat`)
+2. Navigate to `BongoCat_Data\Managed\`
+3. Back up the original `Assembly-CSharp.dll` (rename to `.dll.bak`)
+4. Copy the patched `Assembly-CSharp.dll` from this repo into that folder
+5. Launch the game - chests will auto-claim when ready
+
+## Building From Source
+
+1. Back up your original `Assembly-CSharp.dll` as `Assembly-CSharp.dll.bak`
+2. Compile and run the patcher:
+
+```bash
+csc /r:tool/Mono.Cecil.dll /out:tool/Patcher.exe tool/Patcher.cs
+Patcher.exe
+```
+
+The patcher reads `Assembly-CSharp.dll.bak`, injects the `Update()` method into `BongoCat.Shop`, and writes the patched `Assembly-CSharp.dll`.
+
+## How It Works
+
+| Component | Purpose |
+|-----------|---------|
+| `CanGetChest` | Existing property on `Shop` - returns `true` when a chest reward is ready |
+| `OnClick()` | Existing method - claims the chest (normally triggered by clicking the UI) |
+| `Update()` | Unity lifecycle method called every frame - injected by the patcher to check and auto-claim |
+
+The patcher uses [Mono.Cecil](https://github.com/jbevain/cecil) to manipulate IL directly. It reads the backup DLL in memory, creates a new `Update()` method definition on `BongoCat.Shop`, emits the four IL instructions, and writes the modified assembly.
+
+The original `TimerUpdate()` coroutine is left untouched - the injection is additive.
 
 ## Troubleshooting
-- **dnSpy compile errors** → game probably updated; check that `Shop`, `ShopItem.CanBuy()`, and `ShopItem.Buy()` still exist with matching signatures
-- **Game won't launch** → restore your backup DLL
-- **Patch disappeared after a game update** → reapply; Steam's "Verify integrity of game files" also reverts it
+
+- **Game updated / patch stopped working** → re-apply. Steam's "Verify integrity of game files" also reverts the DLL.
+- **Patcher can't find `Shop` or required methods** → the game may have been updated; check that `BongoCat.Shop`, `get_CanGetChest`, and `OnClick()` still exist.
+- **Game won't launch** → restore `Assembly-CSharp.dll.bak`.
+
+## Disclaimer
+
+This mod is for educational purposes. Use at your own risk. Modifying game files may violate terms of service.
