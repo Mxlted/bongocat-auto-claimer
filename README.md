@@ -1,109 +1,103 @@
-# Bongo Cat Auto-Claim Chest Mod
+# Bongo Cat Auto Chest Claimer
 
-A throttled DLL patch for Bongo Cat that auto-claims chests in the background without checking or clicking every frame.
-
-> Working as of May 2026
+A lightweight patched `Assembly-CSharp.dll` for Bongo Cat that auto-claims available chests without synthetic mouse input, UI clicking, or per-frame polling.
 
 ## What It Does
 
-This patched `Assembly-CSharp.dll` injects a lightweight `Update()` method into `BongoCat.Shop`.
+This patch adds a small scheduled claim tick to `BongoCat.Shop`.
 
-Instead of checking every frame, the mod checks roughly once every 30 seconds. If a chest is ready (`CanGetChest`), it calls the game's existing claim handler (`OnClick()`).
-
-That means chests should be claimed within about a 30-second window, while avoiding the old per-frame loop that could repeatedly trigger UI shake animations while a Steam/server claim was already pending.
+Instead of calling the game's `OnClick()` handler or checking every frame, the patch uses Unity's `InvokeRepeating()` to run a direct claim check every 5 seconds. When a chest is ready and affordable, it calls the game's normal `ShopItem.Buy()` method.
 
 Equivalent C#:
 
 ```csharp
-private float _autoClaimNextCheckAt;
-
-void Update()
+private void AutoClaimTick()
 {
-    float now = Time.realtimeSinceStartup;
-    if (now < _autoClaimNextCheckAt)
-        return;
-
-    _autoClaimNextCheckAt = now + 30f;
-
-    if (CanGetChest)
-        OnClick();
+    if (ChestIsReady && _shopItem != null && _shopItem.CanBuy())
+    {
+        _shopItem.Buy();
+    }
 }
 ```
+
+## Why This Version
+
+The older `TimerUpdate()` patch was stable and claimed quickly, but it changed more of the game's original coroutine logic.
+
+The newer throttled `Update()` patch felt better in Bongo Cat, but it still added a Unity frame callback and used `OnClick()`, which can trigger UI click behavior such as shake animations.
+
+This version keeps the original timer coroutine intact and avoids the click handler entirely:
+
+- No synthetic mouse clicks
+- No `OnClick()` auto-claim path
+- No per-frame `Update()` polling
+- No repeated UI shake/flash attempts while unavailable
+- Normal and emote chests are staggered to avoid simultaneous claims
+
+## Behavior
+
+- Normal chest first checks after 1 second
+- Emote chest first checks after 2 seconds
+- Both shops recheck every 5 seconds
+- Claims only when `ChestIsReady` is true
+- Claims only when `_shopItem.CanBuy()` is true
+- Uses the game's existing `ShopItem.Buy()` flow, including Steam/server handling
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `Assembly-CSharp.dll` | Patched DLL with throttled auto-claim behavior |
-| `Assembly-CSharp.dll.pre-throttle.bak` | Backup of the previous modded DLL before the throttle patch |
-| `tools/PatchThrottle.ps1` | PowerShell/Mono.Cecil patcher used to add or change the throttle interval |
-| `tools/ilspycmd/` | Local ILSpy CLI package used for decompiling and Mono.Cecil patching |
+| `Assembly-CSharp.dll` | Patched DLL to copy into Bongo Cat |
+| `tools/PatchAutoClaim.ps1` | Mono.Cecil patcher used to inject or refresh the auto-claim logic |
+| `.gitignore` | Keeps local reference docs, backups, and downloaded tooling out of commits |
 
-Note: `Assembly-CSharp.dll.pre-throttle.bak` is not guaranteed to be the original Steam DLL. To restore the true original, use Steam's "Verify integrity of game files" or a backup you made before modding.
-
-## Requirements
-
-- [Bongo Cat on Steam](https://store.steampowered.com/app/2324940/Bongo_Cat/)
-- PowerShell 7 or Windows PowerShell for re-running the throttle patcher
-- .NET runtime for ILSpy/Mono.Cecil tooling already downloaded under `tools/ilspycmd/`
+Local backups and reference notes are intentionally not part of the repo.
 
 ## Installation
 
 1. Close Bongo Cat.
-2. Locate your Bongo Cat install, typically under a Steam library folder.
-3. Navigate to `BongoCat_Data\Managed\`.
-4. Back up the original `Assembly-CSharp.dll` if you have not already.
-5. Copy this folder's patched `Assembly-CSharp.dll` into `BongoCat_Data\Managed\`.
-6. Launch the game.
+2. Find the game install folder in Steam.
+3. Open `BongoCat_Data\Managed\`.
+4. Back up the original `Assembly-CSharp.dll`.
+5. Copy this repo's patched `Assembly-CSharp.dll` into `BongoCat_Data\Managed\`.
+6. Launch Bongo Cat.
 
-## Changing the Claim Interval
+Typical Steam path:
 
-The current interval is 30 seconds. To change it, run the patch script from this repository:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -IntervalSeconds 45
+```text
+Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll
 ```
 
-Run that command from the `bongocat-auto-claimer` directory, or pass `-AssemblyPath` if patching a DLL elsewhere.
+## Re-Patching
 
-Examples:
+If Bongo Cat updates and Steam replaces the DLL, restore or download the new clean `Assembly-CSharp.dll`, place it in this repo, then run:
 
 ```powershell
-# Check every 60 seconds
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -IntervalSeconds 60
-
-# Patch a DLL inside the Steam install directly
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -AssemblyPath "C:\Path\To\BongoCat_Data\Managed\Assembly-CSharp.dll" -IntervalSeconds 30
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1
 ```
 
-## How It Works
+Optional timing settings:
 
-| Component | Purpose |
-|-----------|---------|
-| `CanGetChest` | Existing property on `BongoCat.Shop`; returns `true` when a chest reward is ready and affordable |
-| `OnClick()` | Existing game method that claims the chest through the normal UI purchase flow |
-| `_autoClaimNextCheckAt` | Injected private float storing the next allowed check time |
-| `Update()` | Injected Unity lifecycle method; exits immediately until the throttle window expires |
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1 -IntervalSeconds 10
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1 -NormalInitialDelaySeconds 1 -EmoteInitialDelaySeconds 2
+```
 
-The original `TimerUpdate()` coroutine is left untouched. The patch is additive and only changes the injected auto-claim behavior.
+The patcher expects Mono.Cecil to be available at:
 
-## Background Load Notes
+```text
+tools\ilspycmd\tools\net10.0\any\Mono.Cecil.dll
+```
 
-For the lowest background impact while gaming:
-
-- Keep Bongo Cat's `Cat Bobbing` setting off.
-- Keep `Always Show Chest` off if you do not need the chest UI visible.
-- Use the throttled DLL instead of the older per-frame auto-claim DLL.
-
-Bongo Cat still runs as a transparent Unity overlay and uses window/input hooks as part of the base game, so it remains worth testing with and without the app if you are isolating display or GPU crashes.
+That downloaded tool folder is ignored so the repository stays small.
 
 ## Troubleshooting
 
-- **Game updated / patch stopped working**: Steam may have replaced the DLL. Re-copy the patched DLL or re-run the patcher against the new one.
-- **Game won't launch**: restore the original DLL or use Steam's "Verify integrity of game files."
-- **Claiming is too slow**: lower `-IntervalSeconds`, but avoid going back to per-frame checks.
-- **Still seeing background load**: turn off constant-rendering options in Bongo Cat and test with the app closed during GPU/display troubleshooting.
+- **Game will not launch**: restore your original DLL backup or verify game files through Steam.
+- **Patch stopped working after an update**: Steam likely replaced the DLL; re-run the patcher against the new DLL.
+- **Claims feel too delayed**: lower `-IntervalSeconds`, but avoid per-frame checking.
+- **Mouse still feels odd while gaming**: test with Bongo Cat fully closed as a baseline, since the base game is still a transparent Unity overlay.
 
 ## Disclaimer
 
-Use at your own risk. Modifying game files may violate the game's terms of service and Steam updates may overwrite the patched DLL.
+Use at your own risk. Modifying game files can be overwritten by Steam updates and may violate a game's terms of service.

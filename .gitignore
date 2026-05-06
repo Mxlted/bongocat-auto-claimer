@@ -1,2 +1,23 @@
-tools/*
-!tools/PatchThrottle.ps1
+# Local reference notes
+OLD-README.md
+NEWER-README.md
+
+# DLL backups
+*.bak
+Assembly-CSharp.dll.pre-*.bak
+
+# Downloaded tool cache
+tools/ilspycmd/
+tools/**/*.nupkg
+
+# Decompiler/build scratch output
+decompiled/
+*.pdb
+bin/
+obj/
+
+# Editor and OS noise
+.vs/
+.vscode/
+Thumbs.db
+Desktop.ini
