@@ -1,29 +1,30 @@
 # Bongo Cat Auto-Claim Chest Mod
 
-A DLL patch for Bongo Cat that auto-claims chests as soon as they become available.
+A throttled DLL patch for Bongo Cat that auto-claims chests in the background without checking or clicking every frame.
 
 > Working as of May 2026
 
 ## What It Does
 
-Injects an `Update()` method into `BongoCat.Shop` that checks every frame whether a chest is ready (`CanGetChest`) and auto-claims it (`OnClick()`). No manual clicking required.
+This patched `Assembly-CSharp.dll` injects a lightweight `Update()` method into `BongoCat.Shop`.
 
-The injected IL is minimal:
+Instead of checking every frame, the mod checks roughly once every 30 seconds. If a chest is ready (`CanGetChest`), it calls the game's existing claim handler (`OnClick()`).
 
-```
-IL_0000: ldarg.0
-IL_0001: call get_CanGetChest
-IL_0006: brfalse.s IL_000e
-IL_0008: ldarg.0
-IL_0009: call OnClick
-IL_000e: ret
-```
+That means chests should be claimed within about a 30-second window, while avoiding the old per-frame loop that could repeatedly trigger UI shake animations while a Steam/server claim was already pending.
 
 Equivalent C#:
 
 ```csharp
+private float _autoClaimNextCheckAt;
+
 void Update()
 {
+    float now = Time.realtimeSinceStartup;
+    if (now < _autoClaimNextCheckAt)
+        return;
+
+    _autoClaimNextCheckAt = now + 30f;
+
     if (CanGetChest)
         OnClick();
 }
@@ -33,57 +34,76 @@ void Update()
 
 | File | Description |
 |------|-------------|
-| `Assembly-CSharp.dll` | Patched DLL with auto-claim injected |
-| `Assembly-CSharp.dll.bak` | Original unmodified DLL (backup) |
-| `tool/Patcher.cs` | C# tool that injects the `Update()` method via Mono.Cecil |
-| `tool/FinalVerify.cs` | Verification tool - confirms the patch is applied correctly |
-| `tool/Explore.cs` | Diagnostic tool - inspects the DLL's Shop internals |
-| `tool/Verify.cs` | Diagnostic tool - checks exception handlers in `ToggleOnHover` |
-| `tool/Mono.Cecil.dll` | .NET assembly read/write library used by the patcher |
+| `Assembly-CSharp.dll` | Patched DLL with throttled auto-claim behavior |
+| `Assembly-CSharp.dll.pre-throttle.bak` | Backup of the previous modded DLL before the throttle patch |
+| `tools/PatchThrottle.ps1` | PowerShell/Mono.Cecil patcher used to add or change the throttle interval |
+| `tools/ilspycmd/` | Local ILSpy CLI package used for decompiling and Mono.Cecil patching |
+
+Note: `Assembly-CSharp.dll.pre-throttle.bak` is not guaranteed to be the original Steam DLL. To restore the true original, use Steam's "Verify integrity of game files" or a backup you made before modding.
 
 ## Requirements
 
 - [Bongo Cat on Steam](https://store.steampowered.com/app/2324940/Bongo_Cat/)
-- If building from source: .NET Framework 4.x or .NET SDK
+- PowerShell 7 or Windows PowerShell for re-running the throttle patcher
+- .NET runtime for ILSpy/Mono.Cecil tooling already downloaded under `tools/ilspycmd/`
 
 ## Installation
 
-1. Locate your Bongo Cat install (typically `Steam\steamapps\common\BongoCat`)
-2. Navigate to `BongoCat_Data\Managed\`
-3. Back up the original `Assembly-CSharp.dll` (rename to `.dll.bak`)
-4. Copy the patched `Assembly-CSharp.dll` from this repo into that folder
-5. Launch the game - chests will auto-claim when ready
+1. Close Bongo Cat.
+2. Locate your Bongo Cat install, typically under a Steam library folder.
+3. Navigate to `BongoCat_Data\Managed\`.
+4. Back up the original `Assembly-CSharp.dll` if you have not already.
+5. Copy this folder's patched `Assembly-CSharp.dll` into `BongoCat_Data\Managed\`.
+6. Launch the game.
 
-## Building From Source
+## Changing the Claim Interval
 
-1. Back up your original `Assembly-CSharp.dll` as `Assembly-CSharp.dll.bak`
-2. Compile and run the patcher:
+The current interval is 30 seconds. To change it, run the patch script from this repository:
 
-```bash
-csc /r:tool/Mono.Cecil.dll /out:tool/Patcher.exe tool/Patcher.cs
-Patcher.exe
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -IntervalSeconds 45
 ```
 
-The patcher reads `Assembly-CSharp.dll.bak`, injects the `Update()` method into `BongoCat.Shop`, and writes the patched `Assembly-CSharp.dll`.
+Run that command from the `bongocat-auto-claimer` directory, or pass `-AssemblyPath` if patching a DLL elsewhere.
+
+Examples:
+
+```powershell
+# Check every 60 seconds
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -IntervalSeconds 60
+
+# Patch a DLL inside the Steam install directly
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchThrottle.ps1 -AssemblyPath "C:\Path\To\BongoCat_Data\Managed\Assembly-CSharp.dll" -IntervalSeconds 30
+```
 
 ## How It Works
 
 | Component | Purpose |
 |-----------|---------|
-| `CanGetChest` | Existing property on `Shop` - returns `true` when a chest reward is ready |
-| `OnClick()` | Existing method - claims the chest (normally triggered by clicking the UI) |
-| `Update()` | Unity lifecycle method called every frame - injected by the patcher to check and auto-claim |
+| `CanGetChest` | Existing property on `BongoCat.Shop`; returns `true` when a chest reward is ready and affordable |
+| `OnClick()` | Existing game method that claims the chest through the normal UI purchase flow |
+| `_autoClaimNextCheckAt` | Injected private float storing the next allowed check time |
+| `Update()` | Injected Unity lifecycle method; exits immediately until the throttle window expires |
 
-The patcher uses [Mono.Cecil](https://github.com/jbevain/cecil) to manipulate IL directly. It reads the backup DLL in memory, creates a new `Update()` method definition on `BongoCat.Shop`, emits the four IL instructions, and writes the modified assembly.
+The original `TimerUpdate()` coroutine is left untouched. The patch is additive and only changes the injected auto-claim behavior.
 
-The original `TimerUpdate()` coroutine is left untouched - the injection is additive.
+## Background Load Notes
+
+For the lowest background impact while gaming:
+
+- Keep Bongo Cat's `Cat Bobbing` setting off.
+- Keep `Always Show Chest` off if you do not need the chest UI visible.
+- Use the throttled DLL instead of the older per-frame auto-claim DLL.
+
+Bongo Cat still runs as a transparent Unity overlay and uses window/input hooks as part of the base game, so it remains worth testing with and without the app if you are isolating display or GPU crashes.
 
 ## Troubleshooting
 
-- **Game updated / patch stopped working** → re-apply. Steam's "Verify integrity of game files" also reverts the DLL.
-- **Patcher can't find `Shop` or required methods** → the game may have been updated; check that `BongoCat.Shop`, `get_CanGetChest`, and `OnClick()` still exist.
-- **Game won't launch** → restore `Assembly-CSharp.dll.bak`.
+- **Game updated / patch stopped working**: Steam may have replaced the DLL. Re-copy the patched DLL or re-run the patcher against the new one.
+- **Game won't launch**: restore the original DLL or use Steam's "Verify integrity of game files."
+- **Claiming is too slow**: lower `-IntervalSeconds`, but avoid going back to per-frame checks.
+- **Still seeing background load**: turn off constant-rendering options in Bongo Cat and test with the app closed during GPU/display troubleshooting.
 
 ## Disclaimer
 
-This mod is for educational purposes. Use at your own risk. Modifying game files may violate terms of service.
+Use at your own risk. Modifying game files may violate the game's terms of service and Steam updates may overwrite the patched DLL.
