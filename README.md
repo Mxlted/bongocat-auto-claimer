@@ -13,7 +13,7 @@ Equivalent C#:
 ```csharp
 private void AutoClaimTick()
 {
-    if (ChestIsReady && _shopItem != null && _shopItem.CanBuy())
+    if (ChestIsReady && !_openingChest && _shopItem != null && _shopItem.CanBuy())
     {
         _shopItem.Buy();
     }
@@ -40,6 +40,7 @@ This version keeps the original timer coroutine intact and avoids the click hand
 - Emote chest first checks after 2 seconds
 - Both shops recheck every 5 seconds
 - Claims only when `ChestIsReady` is true
+- Skips a tick while the game is already opening a chest (`_openingChest`), including chests gifted by lobby members
 - Claims only when `_shopItem.CanBuy()` is true
 - Uses the game's existing `ShopItem.Buy()` flow, including Steam/server handling
 
@@ -48,7 +49,7 @@ This version keeps the original timer coroutine intact and avoids the click hand
 | File | Description |
 |------|-------------|
 | `Assembly-CSharp.dll` | Patched DLL to copy into Bongo Cat |
-| `tools/PatchAutoClaim.ps1` | Mono.Cecil patcher used to inject or refresh the auto-claim logic |
+| `tools/PatchAutoClaim.ps1` | Mono.Cecil patcher used to validate, inject, or refresh the auto-claim logic |
 | `.gitignore` | Keeps local reference docs, backups, and downloaded tooling out of commits |
 
 Local backups and reference notes are intentionally not part of the repo.
@@ -73,8 +74,11 @@ Steam\steamapps\common\BongoCat\BongoCat_Data\Managed\Assembly-CSharp.dll
 If Bongo Cat updates and Steam replaces the DLL, restore or download the new clean `Assembly-CSharp.dll`, place it in this repo, then run:
 
 ```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1 -ValidateOnly
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1
 ```
+
+`-ValidateOnly` checks the required game types, fields, method signatures, and every `Shop.Awake()` exit without changing the DLL. A normal patch run writes to a temporary file, reopens and validates the result, and only then replaces the source DLL.
 
 Optional timing settings:
 
@@ -83,6 +87,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1 -Interv
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\PatchAutoClaim.ps1 -NormalInitialDelaySeconds 1 -EmoteInitialDelaySeconds 2
 ```
 
+Timing arguments must be finite positive values. Re-running the patcher on an already patched DLL refreshes the existing schedules, so new timing values take effect without restoring a clean copy first.
+
 The patcher expects Mono.Cecil to be available at:
 
 ```text
@@ -90,6 +96,8 @@ tools\ilspycmd\tools\net10.0\any\Mono.Cecil.dll
 ```
 
 That downloaded tool folder is ignored so the repository stays small.
+
+The first clean input is backed up as `Assembly-CSharp.dll.pre-autoclaim.bak`. If a later game update is patched while that backup exists, the patcher creates a hash-suffixed backup instead of overwriting the older clean DLL.
 
 ## Troubleshooting
 
